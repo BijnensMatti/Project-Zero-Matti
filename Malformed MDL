@@ -1,0 +1,43 @@
+PROBLEM_CLASSES:
+
+ID:     [0n309]
+Type:   [@ACCESS_VIOLATION]
+Class:  Addendum
+Scope:  BUCKET_ID
+Name:   Omit
+Data:   Omit
+PID:    [Unspecified]
+TID:    [0x6e30]
+Frame:  [0] : hw!CreateInterface
+
+ID:     [0n282]
+Type:   [INVALID_POINTER_WRITE]
+Class:  Primary
+Scope:  DEFAULT_BUCKET_ID (Failure Bucket ID prefix)
+        BUCKET_ID
+Name:   Add
+Data:   Omit
+PID:    [Unspecified]
+TID:    [0x6e30]
+Frame:  [0] : hw!CreateInterface
+
+ID:     [0n156]
+Type:   [ZEROED_STACK]
+Class:  Addendum
+Scope:  BUCKET_ID
+Name:   Add
+Data:   Omit
+PID:    [0x300]
+TID:    [0x6e30]
+Frame:  [0] : hw!CreateInterface
+
+ID:     [0n115]
+Type:   [EXPLOITABLE]
+Class:  Addendum
+Scope:  DEFAULT_BUCKET_ID (Failure Bucket ID prefix)
+        BUCKET_ID
+Name:   Add
+Data:   Omit
+PID:    [0x300]
+TID:    [0x6e30]
+Frame:  [0] : hw!CreateInterface
