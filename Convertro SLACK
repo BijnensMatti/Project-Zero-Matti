@@ -1,0 +1,35 @@
+Hi!
+
+There is a vulnerability on your pages, using convertro.
+
+Vulnerable parameter from location hash (cvo_sid1), used in your live.js to call convertro code without sanitizing. On the convertro side it is sanitized, but with help of this parameter you could push another parameter (typ), that leads to generating malformed javascript answer with XSS injection ability. Like this : cvo_sid1=111\u0026;typ=[code injection] , where \u0026; is an ampersand symbol.
+See screenshots below.
+There is a restriction on a semicolon use, so i replaced it with %3b.
+
+To reproduce vulnerability, you could try this safe example:
+https://slack.com/is#?cvo_sid1=111/u0026;typ=55577%5D%22)%3balert(document.cookie)%3b//
+
+This vulnerability provides a great opportunity for victim to lose not only cookies, but also control over the account after stealth forwarding to porposely generated link like this. I think, you know ;)
+
+2 attachments:
+F100875: slack1.jpg
+F100876: slack2.jpg
+maxfeldman changed the status to Triaged.	Jun 22nd (3 years ago)
+Thanks @virtualhunter! We've validated this and are taking a look internally. Awesome find!
+
+maxfeldman posted a comment.	Jun 22nd (3 years ago)
+Hey @virtualhunter,
+
+We believe we've patched this - would you mind making sure the fix has propagated to your environment?
+
+Thanks!
+Max
+
+virtualhunter posted a comment.	Jun 22nd (3 years ago)
+Yes. I see, all ok now! Fast work!
+
+maxfeldman closed the report and changed the status to Resolved.	Jun 22nd (3 years ago)
+Slack rewarded virtualhunter with a $1,100 bounty.	Jun 22nd (3 years ago)
+Thanks for an interesting finding! Please keep up the good work!
+
+The Slack Security Team
